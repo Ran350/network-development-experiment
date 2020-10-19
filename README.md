@@ -1,2 +1,2 @@
 # network-development-experiment
-SN２回生ネットワーク開発開発実験
+SN２回生ネットワーク開発実験
