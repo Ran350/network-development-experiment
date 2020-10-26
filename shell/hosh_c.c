@@ -24,6 +24,11 @@ int main() {
             }
         }
 
+        //コマンドが入力されていないとき
+        if (command[0] == '\0') {
+            continue;
+        }
+
         //コマンドライン引数リスト作成
         char *pargs[256];
         for (i = 0; i < 256; i++) pargs[i] = NULL;  //pargsの初期化
@@ -47,21 +52,20 @@ int main() {
         int pid = fork();
         int status;
 
+        //子プロセス
         if (pid == 0) {
-            //子プロセス
             execv(pargs[0], pargs);
             exit(-1);
         }
 
+        //フォーク失敗
         if (pid == -1) {
-            //フォーク失敗
             printf("fork error");
         }
 
+        //親プロセス
         if (pid > 0) {
-            //親プロセス
-
-            //バックグラウンド実行終了確認
+            //子プロセスのどれかが終了するまで待機
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
                 if (WIFEXITED(status) != 0) {
                     printf("終了[%d]\n", pid);
