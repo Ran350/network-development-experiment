@@ -11,7 +11,7 @@
 char *inner_commands[] = {"exit", "quit", "jobs", "fg"};
 
 typedef struct {
-    int pid;
+    int pid;            /* プロセスID */
     bool is_running;    /* 実行中か否か */
     bool is_background; /* バックグラウンド実行か否か */
 } child_t;
@@ -43,26 +43,32 @@ void create_pargs(char *pargs[], int *len_pargs, char command[]) {
 void update_exited_process(int pid, process_t *process_manager) {
     printf("終了[%d]\n", pid);
 
-    int i;
+    child_t *child_list = process_manager->child_list;    /* プロセス管理リスト */
+    int len_child_list = process_manager->len_child_list; /* プロセス管理リストの要素数 */
 
-    for (i = 0; i < process_manager->len_child_list; i++) {
-        if (process_manager->child_list[i].pid == pid) break;
+    int i;
+    for (i = 0; i < len_child_list; i++) {
+        if (child_list[i].pid == pid) break;
     }
-    process_manager->child_list[i].is_running = false;
+    child_list[i].is_running = false;
+
     process_manager->num_running_child -= 1;
 }
 
 //jobsコマンド
 void jobs(process_t process_manager) {
-    int i;
-
     printf("PID \n");
-    for (i = 1; i <= process_manager.len_child_list; i++) {
-        if (process_manager.child_list[i].is_running == true) {
+
+    child_t *child_list = process_manager.child_list;    /* プロセス管理リスト */
+    int len_child_list = process_manager.len_child_list; /* プロセス管理リストの要素数 */
+
+    int i;
+    for (i = 1; i <= len_child_list; i++) {
+        if (child_list[i].is_running == true) {
             printf("%d ", i);
-            printf("%d ", process_manager.child_list[i].pid);
-            // printf("run:%d ", process_manager.child_list[i].is_running);
-            printf("bg:%d ", process_manager.child_list[i].is_background);
+            printf("%d ", child_list[i].pid);
+            printf("run:%d ", child_list[i].is_running);
+            printf("bg:%d ", child_list[i].is_background);
             printf("\n");
         }
     }
@@ -73,10 +79,13 @@ void fg(char pid[], process_t *process_manager) {
     int fg_pid = (int)strtol(pid, NULL, 10);  //char型の数値をint型に変換
 
     int status;
-    int i;
 
-    for (i = 0; i <= process_manager->len_child_list; i++) {
-        if (fg_pid == process_manager->child_list[i].pid) {
+    child_t *child_list = process_manager->child_list;    /* プロセス管理リスト */
+    int len_child_list = process_manager->len_child_list; /* プロセス管理リストの要素数 */
+
+    int i;
+    for (i = 0; i <= len_child_list; i++) {
+        if (fg_pid == child_list[i].pid) {
             waitpid(fg_pid, &status, 0);
         }
     }
@@ -111,12 +120,13 @@ bool inner_command(char *pargs[], process_t *process_manager) {
 
 //バックグラウンド実行するか判定する
 bool judge_background(char *pargs[], int len_pargs) {
-    if (len_pargs > 0) {
-        if (strncmp(pargs[len_pargs - 1], "&", LEN_COMMAND) == 0) {
-            pargs[len_pargs - 1] = NULL;
-            return true;
-        }
+    if (len_pargs <= 0) return 0;  //引数リストが空なら評価しない
+
+    if (strncmp(pargs[len_pargs - 1], "&", LEN_COMMAND) == 0) {
+        pargs[len_pargs - 1] = NULL;
+        return true;
     }
+
     return false;
 }
 
@@ -125,19 +135,34 @@ void add_child_process(int pid, bool is_background, process_t *process_manager) 
     process_manager->len_child_list += 1;
     process_manager->num_running_child += 1;
 
-    process_manager->child_list[process_manager->len_child_list].pid = pid;
-    process_manager->child_list[process_manager->len_child_list].is_running = true;
-    process_manager->child_list[process_manager->len_child_list].is_background = is_background;
+    child_t *child_list = process_manager->child_list;    /* プロセス管理リスト */
+    int len_child_list = process_manager->len_child_list; /* プロセス管理リストの要素数 */
 
-    // printf("tail:%d ", process_manager->len_child_list);
-    // printf("nrun:%d ", process_manager->num_running_child);
-    // printf("pid:%d ", process_manager->child_list[process_manager->len_child_list].pid);
-    // printf("isrun:%d ", process_manager->child_list[process_manager->len_child_list].is_running);
-    // printf("isbg:%d \n", process_manager->child_list[process_manager->len_child_list].is_background);
+    child_list[len_child_list].pid = pid;
+    child_list[len_child_list].is_running = true;
+    child_list[len_child_list].is_background = is_background;
+
+    // printf("len_list:%d ", len_child_list);
+    // printf("num_run:%d ", process_manager->num_running_child);
+    // printf("pid:%d ", process_list[len_child_list].pid);
+    // printf("is_run:%d ", process_list[len_child_list].is_running);
+    // printf("is_bg:%d \n", process_list[len_child_list].is_background);
 }
 
-int main() {
+int main(void) {
     process_t process_manager = {{0, 0, 0}, 0, 0};
+    /* 
+    ---process_managerの構造---
+    process_manager:{
+        child_t child_list[]:{
+            int pid
+            bool is_running
+            bool is_background
+        }
+        int len_child_list
+        int num_running_child
+    }
+    */
 
     int pid; /* プロセスID */
     int status;
