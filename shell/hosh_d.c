@@ -119,7 +119,7 @@ bool inner_command(char *pargs[], process_t *process_manager) {
 }
 
 //バックグラウンド実行するか判定する
-bool judge_background(char *pargs[], int len_pargs) {
+bool check_background(char *pargs[], int len_pargs) {
     if (len_pargs <= 0) return 0;  //引数リストが空なら評価しない
 
     if (strncmp(pargs[len_pargs - 1], "&", LEN_COMMAND) == 0) {
@@ -130,8 +130,8 @@ bool judge_background(char *pargs[], int len_pargs) {
     return false;
 }
 
-//プロセス管理リストに新しいプロセスを追記
-void add_child_process(int pid, bool is_background, process_t *process_manager) {
+//プロセスマネージャに新しいプロセスを書き加える
+void write_new_process(int pid, bool is_background, process_t *process_manager) {
     process_manager->len_child_list += 1;
     process_manager->num_running_child += 1;
 
@@ -187,7 +187,7 @@ int main(void) {
         }
 
         //バックグラウンド実行するか判定する
-        bool is_background = judge_background(pargs, len_pargs);
+        bool is_background = check_background(pargs, len_pargs);
 
         //プロセス生成
         pid = fork();
@@ -207,8 +207,8 @@ int main(void) {
         if (pid > 0) {
             printf("開始 %s (pid %d) \n", pargs[0], pid);
 
-            //プロセス管理リストに新しいプロセスを追記
-            add_child_process(pid, is_background, &process_manager);
+            //プロセスマネージャに新しいプロセスを書き加える
+            write_new_process(pid, is_background, &process_manager);
 
             //子プロセスのどれかが終了するまで待機
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
