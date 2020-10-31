@@ -5,91 +5,103 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#define NUM_PROCESS 256 /* プロセス数の上限 */
+#define LEN_COMMAND 256 /* コマンドの文字数の上限 */
+
 char *inner_commands[] = {"exit", "quit", "jobs", "fg"};
 
 typedef struct {
     int pid;
-    bool is_running;     //実行中 -> true
-    bool is_background;  //バックグラウンド実行 -> true
+    bool is_running;    /* 実行中か否か */
+    bool is_background; /* バックグラウンド実行か否か */
 } child_t;
+
+typedef struct {
+    child_t child_list[NUM_PROCESS]; /* プロセス管理リスト */
+    int len_child_list;              /* プロセス管理リストの要素数 */
+    int num_running_child;           /* 実行中のプロセスの個数 */
+} process_t;
 
 //コマンドライン引数リスト作成
 void create_pargs(char *pargs[], int *len_pargs, char command[]) {
+    //pargsの初期化
     int i;
-    for (i = 0; i < 256; i++) pargs[i] = NULL;  //pargsの初期化
+    for (i = 0; i < LEN_COMMAND; i++) pargs[i] = NULL;
 
+    //引数に分割
     char *p;
     p = strtok(command, " ");
     for (i = 0; p; i++) {
         pargs[i] = p;
         p = strtok(NULL, " ");
     }
+
     *len_pargs = i;
 }
 
 //プロセス管理リスト中の終了したプロセスを終了済状態にする
-void update_exited_process(child_t child_list[256], int pid, int *num_running_child, int len_child_list) {
+void update_exited_process(int pid, process_t *process_manager) {
     printf("終了[%d]\n", pid);
 
     int i;
 
-    for (i = 0; i < len_child_list; i++) {
-        if (child_list[i].pid == pid) break;
+    for (i = 0; i < process_manager->len_child_list; i++) {
+        if (process_manager->child_list[i].pid == pid) break;
     }
-    child_list[i].is_running = false;
-    *num_running_child -= 1;
+    process_manager->child_list[i].is_running = false;
+    process_manager->num_running_child -= 1;
 }
 
 //jobsコマンド
-void jobs(child_t child_list[], int len_child_list) {
+void jobs(process_t process_manager) {
     int i;
 
     printf("PID \n");
-    for (i = 1; i <= len_child_list; i++) {
-        // if (child_list[i].is_running == true) {
-        printf("%d ", i);
-        printf("%d ", child_list[i].pid);
-        printf("run:%d ", child_list[i].is_running);
-        printf("bg:%d ", child_list[i].is_background);
-        printf("\n");
-        // }
+    for (i = 1; i <= process_manager.len_child_list; i++) {
+        if (process_manager.child_list[i].is_running == true) {
+            printf("%d ", i);
+            printf("%d ", process_manager.child_list[i].pid);
+            // printf("run:%d ", process_manager.child_list[i].is_running);
+            printf("bg:%d ", process_manager.child_list[i].is_background);
+            printf("\n");
+        }
     }
 }
 
 //fgコマンド
-void fg(child_t child_list[], int len_child_list, char pid[], int *num_running_child) {
+void fg(char pid[], process_t *process_manager) {
     int fg_pid = (int)strtol(pid, NULL, 10);  //char型の数値をint型に変換
 
     int status;
     int i;
 
-    for (i = 0; i <= len_child_list; i++) {
-        if (fg_pid == child_list[i].pid) {
+    for (i = 0; i <= process_manager->len_child_list; i++) {
+        if (fg_pid == process_manager->child_list[i].pid) {
             waitpid(fg_pid, &status, 0);
         }
     }
     //プロセス管理リスト中の終了したプロセスを終了済状態にする
-    update_exited_process(child_list, fg_pid, num_running_child, len_child_list);
+    update_exited_process(fg_pid, process_manager);
 }
 
 //内部コマンド実行
-bool inner_command(char *pargs[], child_t *child_list, int len_child_list, int *num_running_child) {
+bool inner_command(char *pargs[], process_t *process_manager) {
     //コマンドが入力されていないとき
     if (pargs[0] == NULL) return true;
 
     //終了コマンド
-    if (strncmp(pargs[0], inner_commands[0], 256) == 0) exit(-1);
-    if (strncmp(pargs[0], inner_commands[1], 256) == 0) exit(-1);
+    if (strncmp(pargs[0], inner_commands[0], LEN_COMMAND) == 0) exit(-1);
+    if (strncmp(pargs[0], inner_commands[1], LEN_COMMAND) == 0) exit(-1);
 
     //jobsコマンド
-    if (strncmp(pargs[0], inner_commands[2], 256) == 0) {
-        jobs(child_list, len_child_list);
+    if (strncmp(pargs[0], inner_commands[2], LEN_COMMAND) == 0) {
+        jobs(*process_manager);
         return true;
     }
 
     //fgコマンド
-    if (strncmp(pargs[0], inner_commands[3], 256) == 0) {
-        fg(child_list, len_child_list, pargs[1], num_running_child);
+    if (strncmp(pargs[0], inner_commands[3], LEN_COMMAND) == 0) {
+        fg(pargs[1], process_manager);
         return true;
     }
 
@@ -100,7 +112,7 @@ bool inner_command(char *pargs[], child_t *child_list, int len_child_list, int *
 //バックグラウンド実行するか判定する
 bool judge_background(char *pargs[], int len_pargs) {
     if (len_pargs > 0) {
-        if (strncmp(pargs[len_pargs - 1], "&", 256) == 0) {
+        if (strncmp(pargs[len_pargs - 1], "&", LEN_COMMAND) == 0) {
             pargs[len_pargs - 1] = NULL;
             return true;
         }
@@ -109,25 +121,25 @@ bool judge_background(char *pargs[], int len_pargs) {
 }
 
 //プロセス管理リストに新しいプロセスを追記
-void add_child_process(child_t child_list[256], int *len_child_list, int *num_running_child, int pid, bool is_background) {
-    *len_child_list += 1;
-    *num_running_child += 1;
-    // printf("tail:%d ", *len_child_list);
-    // printf("nrun:%d ", *num_running_child);
-    child_list[*len_child_list].pid = pid;
-    child_list[*len_child_list].is_running = true;
-    child_list[*len_child_list].is_background = is_background;
-    // printf("pid:%d ", child_list[*len_child_list].pid);
-    // printf("isrun:%d ", child_list[*len_child_list].is_running);
-    // printf("isbg:%d \n", child_list[*len_child_list].is_background);
+void add_child_process(int pid, bool is_background, process_t *process_manager) {
+    process_manager->len_child_list += 1;
+    process_manager->num_running_child += 1;
+
+    process_manager->child_list[process_manager->len_child_list].pid = pid;
+    process_manager->child_list[process_manager->len_child_list].is_running = true;
+    process_manager->child_list[process_manager->len_child_list].is_background = is_background;
+
+    // printf("tail:%d ", process_manager->len_child_list);
+    // printf("nrun:%d ", process_manager->num_running_child);
+    // printf("pid:%d ", process_manager->child_list[process_manager->len_child_list].pid);
+    // printf("isrun:%d ", process_manager->child_list[process_manager->len_child_list].is_running);
+    // printf("isbg:%d \n", process_manager->child_list[process_manager->len_child_list].is_background);
 }
 
 int main() {
-    child_t child_list[256];    //プロセス管理リスト
-    int len_child_list = 0;     //プロセス管理リストの要素数
-    int num_running_child = 0;  //実行中のプロセスの個数
+    process_t process_manager = {{0, 0, 0}, 0, 0};
 
-    int pid;  //プロセスID
+    int pid; /* プロセスID */
     int status;
 
     while (true) {
@@ -135,23 +147,25 @@ int main() {
         printf("\n> ");
 
         // コマンドを入力
-        char command[256];
-        fgets(command, 256, stdin);
+        char command[LEN_COMMAND];
+        fgets(command, LEN_COMMAND, stdin);
         command[strlen(command) - 1] = '\0';  //\nを削除
 
-        char *pargs[256];                          //コマンドライン引数リスト
-        int len_pargs;                             //コマンドライン引数リストの要素数
-        create_pargs(pargs, &len_pargs, command);  //コマンドライン引数リスト作成
+        //コマンドライン引数リスト作成
+        char *pargs[LEN_COMMAND]; /* コマンドライン引数リスト */
+        int len_pargs;            /* コマンドライン引数リストの要素数 */
+        create_pargs(pargs, &len_pargs, command);
 
         //内部コマンド実行
-        if (inner_command(pargs, child_list, len_child_list, &num_running_child) == true) {
+        if (inner_command(pargs, &process_manager) == true) {
             continue;
         }
 
         //バックグラウンド実行するか判定する
         bool is_background = judge_background(pargs, len_pargs);
 
-        pid = fork();  //プロセス生成
+        //プロセス生成
+        pid = fork();
 
         //子プロセス
         if (pid == 0) {
@@ -169,13 +183,13 @@ int main() {
             printf("開始 %s (pid %d) \n", pargs[0], pid);
 
             //プロセス管理リストに新しいプロセスを追記
-            add_child_process(child_list, &len_child_list, &num_running_child, pid, is_background);
+            add_child_process(pid, is_background, &process_manager);
 
             //子プロセスのどれかが終了するまで待機
             while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
                 if (WIFEXITED(status) != 0) {
                     //プロセス管理リスト中の終了したプロセスを終了済状態にする
-                    update_exited_process(child_list, pid, &num_running_child, len_child_list);
+                    update_exited_process(pid, &process_manager);
                 }
             }
 
@@ -184,7 +198,7 @@ int main() {
                 pid = waitpid(-1, &status, 0);
 
                 //プロセス管理リスト中の終了したプロセスを終了済状態にする
-                update_exited_process(child_list, pid, &num_running_child, len_child_list);
+                update_exited_process(pid, &process_manager);
             }
         }
     }
