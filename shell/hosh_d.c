@@ -11,7 +11,7 @@
 char *inner_commands[] = {"exit", "quit", "jobs", "fg"};
 
 typedef struct {
-    int pid;            /* プロセスID */
+    pid_t pid;          /* プロセスID */
     bool is_running;    /* 実行中か否か */
     bool is_background; /* バックグラウンド実行か否か */
 } child_t;
@@ -99,8 +99,8 @@ bool inner_command(char *pargs[], process_t *process_manager) {
     if (pargs[0] == NULL) return true;
 
     //終了コマンド
-    if (strncmp(pargs[0], inner_commands[0], LEN_COMMAND) == 0) exit(-1);
-    if (strncmp(pargs[0], inner_commands[1], LEN_COMMAND) == 0) exit(-1);
+    if (strncmp(pargs[0], inner_commands[0], LEN_COMMAND) == 0) exit(0);
+    if (strncmp(pargs[0], inner_commands[1], LEN_COMMAND) == 0) exit(0);
 
     //jobsコマンド
     if (strncmp(pargs[0], inner_commands[2], LEN_COMMAND) == 0) {
@@ -131,7 +131,7 @@ bool check_background(char *pargs[], int len_pargs) {
 }
 
 //プロセスマネージャに新しいプロセスを書き加える
-void write_new_process(int pid, bool is_background, process_t *process_manager) {
+void write_new_process(pid_t pid, bool is_background, process_t *process_manager) {
     process_manager->len_child_list += 1;
     process_manager->num_running_child += 1;
 
@@ -164,10 +164,10 @@ int main(void) {
     }
     */
 
-    int pid; /* プロセスID */
+    pid_t pid; /* プロセスID */
     int status;
 
-    while (true) {
+    while (1) {
         //プロンプトを出力
         printf("\n> ");
 
@@ -181,13 +181,13 @@ int main(void) {
         int len_pargs;            /* コマンドライン引数リストの要素数 */
         create_pargs(pargs, &len_pargs, command);
 
+        //バックグラウンド実行するか判定する
+        bool is_background = check_background(pargs, len_pargs);
+
         //内部コマンド実行
         if (inner_command(pargs, &process_manager) == true) {
             continue;
         }
-
-        //バックグラウンド実行するか判定する
-        bool is_background = check_background(pargs, len_pargs);
 
         //プロセス生成
         pid = fork();
@@ -195,7 +195,7 @@ int main(void) {
         //子プロセス
         if (pid == 0) {
             execv(pargs[0], pargs);
-            exit(-1);
+            exit(0);
         }
 
         //フォーク失敗
