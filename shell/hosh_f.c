@@ -1,6 +1,6 @@
 // name: hosh
 // author: Hoshina Rannosuke
-// discription: shell script
+// discription: write a shell in C
 // enviroment: ubuntu
 
 #include <dirent.h>
@@ -18,7 +18,7 @@
 #define LEN_ENV 2048    /* 環境変数一覧の文字数の上限 */
 #define NUM_ENV_VAR 256 /* 環境変数の個数の上限 */
 
-char *inner_commands[] = {"exit", "q", "jobs", "fg"}; /* 内部コマンド */
+char *inner_commands[] = {"exit", "quit", "jobs", "fg"}; /* 内部コマンド */
 
 typedef struct {
     pid_t pid;          /* プロセスID */
@@ -29,7 +29,7 @@ typedef struct {
 typedef struct {
     process_t process_list[NUM_PROCESS]; /* プロセス管理リスト */
     int num_process;                     /* プロセス管理リスト中のプロセス数 */
-    int num_running_child;               /* 実行中のプロセスの個数 */
+    int num_running_process;             /* 実行中のプロセスの個数 */
 } manager_t;
 
 manager_t process_manager = {{0, 0, 0}, 0, 0}; /* プロセスマネージャ */
@@ -67,7 +67,7 @@ void update_exited_process(int pid, manager_t *process_manager) {
     }
     process_list[i].is_running = false;
 
-    process_manager->num_running_child -= 1;
+    process_manager->num_running_process -= 1;
 }
 
 // jobsコマンドを実行
@@ -78,13 +78,13 @@ void run_jobs(manager_t process_manager) {
     int num_process = process_manager.num_process;          /* プロセス管理リスト中のプロセス数 */
 
     for (int i = 1; i <= num_process; i++) {
-        //  if (process_list[i].is_running == true) {
-        printf("%d ", i);
-        printf("%d ", process_list[i].pid);
-        printf("run:%d ", process_list[i].is_running);
-        printf("bg:%d ", process_list[i].is_background);
-        printf("\n");
-        //  }
+        if (process_list[i].is_running == true) {
+            printf("%d ", i);
+            printf("%d ", process_list[i].pid);
+            printf("run:%d ", process_list[i].is_running);
+            printf("bg:%d ", process_list[i].is_background);
+            printf("\n");
+        }
     }
 }
 
@@ -147,7 +147,7 @@ bool check_background(char *command_lines[], int len_command_lines) {
 // プロセスマネージャに新しいプロセスを書き加える
 void write_new_process(int pid, bool is_background, manager_t *process_manager) {
     process_manager->num_process += 1;
-    process_manager->num_running_child += 1;
+    process_manager->num_running_process += 1;
 
     process_t *process_list = process_manager->process_list; /* プロセス管理リスト */
     int num_process = process_manager->num_process;          /* プロセス管理リスト中のプロセス数 */
@@ -159,7 +159,7 @@ void write_new_process(int pid, bool is_background, manager_t *process_manager) 
 
 // キーボード割り込み用シグナルハンドラ
 void handler_keybord_interrupt(int sig) {
-    if (process_manager.num_running_child != 0) {
+    if (process_manager.num_running_process != 0) {
         kill(foreground_pid, sig);
     }
 }
