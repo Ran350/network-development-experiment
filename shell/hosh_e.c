@@ -10,7 +10,7 @@
 #define NUM_PROCESS 256 /* プロセス数の上限 */
 #define LEN_COMMAND 256 /* コマンドの文字数の上限 */
 
-char *inner_commands[] = {"exit", "q", "jobs", "fg"};
+char *inner_commands[] = {"exit", "quit", "jobs", "fg"};
 
 typedef struct {
     pid_t pid;          /* プロセスID */
@@ -69,13 +69,13 @@ void jobs(process_t process_manager) {
 
     int i;
     for (i = 1; i <= len_child_list; i++) {
-        // if (child_list[i].is_running == true) {
-        printf("%d ", i);
-        printf("%d ", child_list[i].pid);
-        printf("run:%d ", child_list[i].is_running);
-        printf("bg:%d ", child_list[i].is_background);
-        printf("\n");
-        // }
+        if (child_list[i].is_running == true) {
+            printf("%d ", i);
+            printf("%d ", child_list[i].pid);
+            printf("run:%d ", child_list[i].is_running);
+            printf("bg:%d ", child_list[i].is_background);
+            printf("\n");
+        }
     }
 }
 
