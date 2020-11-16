@@ -1,3 +1,8 @@
+// name: hosh
+// author: Hoshina Rannosuke
+// discription: shell script
+// enviroment: ubuntu
+
 #include <dirent.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -10,89 +15,90 @@
 
 #define NUM_PROCESS 256 /* プロセス数の上限 */
 #define LEN_COMMAND 256 /* コマンドの文字数の上限 */
-#define LEN_ENV 2048    /* 環境変数の文字数の上限 */
+#define LEN_ENV 2048    /* 環境変数一覧の文字数の上限 */
 #define NUM_ENV_VAR 256 /* 環境変数の個数の上限 */
 
-char *inner_commands[] = {"exit", "q", "jobs", "fg"};
+char *inner_commands[] = {"exit", "q", "jobs", "fg"}; /* 内部コマンド */
 
 typedef struct {
     pid_t pid;          /* プロセスID */
     bool is_running;    /* 実行中か否か */
     bool is_background; /* バックグラウンド実行か否か */
-} child_t;
-
-typedef struct {
-    child_t child_list[NUM_PROCESS]; /* プロセス管理リスト */
-    int len_child_list;              /* プロセス管理リストの要素数 */
-    int num_running_child;           /* 実行中のプロセスの個数 */
 } process_t;
 
-process_t process_manager = {{0, 0, 0}, 0, 0}; /* プロセスマネージャ */
-pid_t foreground_pid = 0;                      /* プロセスID */
+typedef struct {
+    process_t process_list[NUM_PROCESS]; /* プロセス管理リスト */
+    int num_process;                     /* プロセス管理リスト中のプロセス数 */
+    int num_running_child;               /* 実行中のプロセスの個数 */
+} manager_t;
+
+manager_t process_manager = {{0, 0, 0}, 0, 0}; /* プロセスマネージャ */
+pid_t foreground_pid = 0;                      /* フォアグラウンド実行中のプロセスのID */
 
 // 文字列をある文字で分割し配列に格納する
 int devide_sentence(char *sentence, char *word_list[], char deviding_char[1]) {
-    // string_listの初期化
+    // word_listの初期化
     int size = sizeof(*word_list) / sizeof(char);
-    for (int j = 0; j < size; j++) word_list[j] = NULL;
+    for (int i = 0; i < size; i++) word_list[i] = NULL;
 
     // 引数に分割
-    char *word; /* 分割済み文字列 */
-    int len;    /* word_listの要素数 */
+    char *word;       /* 分割済み文字列 */
+    int num_word = 0; /* wordの個数 */
     word = strtok(sentence, deviding_char);
-    for (len = 0; word != 0; len++) {
-        word_list[len] = word;
+    while (word != 0) {
+        word_list[num_word] = word;
         word = strtok(NULL, deviding_char);
+        num_word += 1;
     }
 
-    return len;
+    return num_word;
 }
 
 // プロセス管理リスト中の終了したプロセスを終了済状態にする
-void update_exited_process(int pid, process_t *process_manager) {
+void update_exited_process(int pid, manager_t *process_manager) {
     printf("終了[%d]\n", pid);
 
-    child_t *child_list = process_manager->child_list;    /* プロセス管理リスト */
-    int len_child_list = process_manager->len_child_list; /* プロセス管理リストの要素数 */
+    process_t *process_list = process_manager->process_list; /* プロセス管理リスト */
+    int num_process = process_manager->num_process;          /* プロセス管理リスト中のプロセス数 */
 
     int i;
-    for (i = 0; i < len_child_list; i++) {
-        if (child_list[i].pid == pid) break;
+    for (i = 0; i < num_process; i++) {
+        if (process_list[i].pid == pid) break;
     }
-    child_list[i].is_running = false;
+    process_list[i].is_running = false;
 
     process_manager->num_running_child -= 1;
 }
 
 // jobsコマンドを実行
-void run_jobs(process_t process_manager) {
+void run_jobs(manager_t process_manager) {
     printf("PID \n");
 
-    child_t *child_list = process_manager.child_list;    /* プロセス管理リスト */
-    int len_child_list = process_manager.len_child_list; /* プロセス管理リストの要素数 */
+    process_t *process_list = process_manager.process_list; /* プロセス管理リスト */
+    int num_process = process_manager.num_process;          /* プロセス管理リスト中のプロセス数 */
 
-    for (int i = 1; i <= len_child_list; i++) {
-        //  if (child_list[i].is_running == true) {
+    for (int i = 1; i <= num_process; i++) {
+        //  if (process_list[i].is_running == true) {
         printf("%d ", i);
-        printf("%d ", child_list[i].pid);
-        printf("run:%d ", child_list[i].is_running);
-        printf("bg:%d ", child_list[i].is_background);
+        printf("%d ", process_list[i].pid);
+        printf("run:%d ", process_list[i].is_running);
+        printf("bg:%d ", process_list[i].is_background);
         printf("\n");
         //  }
     }
 }
 
 // fgコマンドを実行
-void run_fg(char char_pid[], process_t *process_manager) {
-    int pid = (int)strtol(char_pid, NULL, 10);  // char型の数値をint型に変換
+void run_fg(char pid_to_fg[], manager_t *process_manager) {
+    int pid = (int)strtol(pid_to_fg, NULL, 10);  // char型の数値をint型に変換
 
     int status;
 
-    child_t *child_list = process_manager->child_list;    /* プロセス管理リスト */
-    int len_child_list = process_manager->len_child_list; /* プロセス管理リストの要素数 */
+    process_t *process_list = process_manager->process_list; /* プロセス管理リスト */
+    int num_process = process_manager->num_process;          /* プロセス管理リスト中のプロセス数 */
 
-    for (int i = 0; i <= len_child_list; i++) {
-        if (pid == child_list[i].pid) {
+    for (int i = 0; i <= num_process; i++) {
+        if (pid == process_list[i].pid) {
             foreground_pid = pid;
             waitpid(pid, &status, 0);
         }
@@ -102,7 +108,7 @@ void run_fg(char char_pid[], process_t *process_manager) {
 }
 
 // 内部コマンド実行
-bool inner_command(char *command_lines[], process_t *process_manager) {
+bool inner_command(char *command_lines[], manager_t *process_manager) {
     // コマンドが入力されていないとき
     if (command_lines[0] == NULL) return true;
 
@@ -139,16 +145,16 @@ bool check_background(char *command_lines[], int len_command_lines) {
 }
 
 // プロセスマネージャに新しいプロセスを書き加える
-void write_new_process(int pid, bool is_background, process_t *process_manager) {
-    process_manager->len_child_list += 1;
+void write_new_process(int pid, bool is_background, manager_t *process_manager) {
+    process_manager->num_process += 1;
     process_manager->num_running_child += 1;
 
-    child_t *child_list = process_manager->child_list;    /* プロセス管理リスト */
-    int len_child_list = process_manager->len_child_list; /* プロセス管理リストの要素数 */
+    process_t *process_list = process_manager->process_list; /* プロセス管理リスト */
+    int num_process = process_manager->num_process;          /* プロセス管理リスト中のプロセス数 */
 
-    child_list[len_child_list].pid = pid;
-    child_list[len_child_list].is_running = true;
-    child_list[len_child_list].is_background = is_background;
+    process_list[num_process].pid = pid;
+    process_list[num_process].is_running = true;
+    process_list[num_process].is_background = is_background;
 }
 
 // キーボード割り込み用シグナルハンドラ
@@ -160,14 +166,14 @@ void handler_keybord_interrupt(int sig) {
 
 // 子プロセスの実行終了用シグナルハンドラ
 void handler_child_exited(int sig) {
-    pid_t pid_exited; /* 終了したプロセスのID */
+    pid_t exited_pid; /* 終了したプロセスのID */
     int status;
 
     // バックグラウンド実行では子プロセスの終了を待たない
-    while ((pid_exited = waitpid(-1, &status, WNOHANG)) > 0) {
+    while ((exited_pid = waitpid(-1, &status, WNOHANG)) > 0) {
         if (WIFEXITED(status) != 0) {
             // プロセス管理リスト中の終了したプロセスを終了済状態にする
-            update_exited_process(pid_exited, &process_manager);
+            update_exited_process(exited_pid, &process_manager);
         }
     }
 }
@@ -182,24 +188,21 @@ void set_handler() {
 }
 
 // 環境変数を取得
-int get_env_list(char *env_list[]) {
+void get_env_list(char *env_list[], int *num_env) {
     // 環境変数一覧を取得
-    char *all_env = getenv("PATH"); /* すべての環境変数 */
+    char *all_env = getenv("PATH"); /* 環境変数一覧 */
 
-    // 環境変数を":"ごとに分割
-    int len_env_list; /* 環境変数リストの要素数 */
-    len_env_list = devide_sentence(all_env, env_list, ":");
+    // 環境変数一覧を":"ごとに分割
+    *num_env = devide_sentence(all_env, env_list, ":");
 
-    for (int i = 0; i < len_env_list; i++) printf("%2d %s \n", i, env_list[i]);
-    // printf("%d \n", len_env_list);
-
-    return len_env_list;
+    for (int i = 0; i < *num_env; i++) printf("%2d %s \n", i, env_list[i]);
+    // printf("%d \n", num_env);
 }
 
-// フルパスを生成
-void create_full_path(char *command_lines[], char *env_list[], int len_env_list) {
+// フルパスを取得
+void get_full_path(char *command_lines[], char *env_list[], int num_env) {
     // ディレクトリ検索
-    for (int i = 0; i < len_env_list; i++) {
+    for (int i = 0; i < num_env; i++) {
         DIR *dir_stream;
 
         if ((dir_stream = opendir(env_list[i])) == NULL) {
@@ -236,8 +239,8 @@ int main(void) {
 
     // 環境変数を取得
     char *env_list[NUM_ENV_VAR]; /* 環境変数リスト */
-    int len_env_list;            /* 環境変数リストの要素数 */
-    len_env_list = get_env_list(env_list);
+    int num_env;                 /* 環境変数の個数 */
+    get_env_list(env_list, &num_env);
 
     while (1) {
         // プロンプトを出力
@@ -250,7 +253,7 @@ int main(void) {
 
         // コマンドライン引数リストを作成
         char *command_lines[LEN_COMMAND]; /* コマンドライン引数リスト */
-        int len_command_lines;            /* コマンドライン引数リストの要素数 */
+        int len_command_lines;            /* コマンドライン引数の個数 */
         len_command_lines = devide_sentence(command, command_lines, " ");
 
         // バックグラウンド実行するかを判定
@@ -264,7 +267,7 @@ int main(void) {
 
         // フルパスを生成
         if (strncmp(command_lines[0], "/", 1) != 0) {
-            create_full_path(command_lines, env_list, len_env_list);
+            get_full_path(command_lines, env_list, num_env);
         }
 
         // プロセスを生成
