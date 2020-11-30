@@ -1,7 +1,7 @@
-// name: hosh
-// author: Hoshina Rannosuke
-// discription: write a shell in C
-// enviroment: ubuntu
+// @name: hosh
+// @author: Hoshina Rannosuke
+// @discription: shell in C
+// @enviroment: ubuntu
 
 #include <dirent.h>
 #include <signal.h>
@@ -195,7 +195,7 @@ void get_env_list(char *env_list[], int *num_env) {
     // 環境変数一覧を":"ごとに分割
     *num_env = devide_sentence(all_env, env_list, ":");
 
-    for (int i = 0; i < *num_env; i++) printf("%2d %s \n", i, env_list[i]);
+    // for (int i = 0; i < *num_env; i++) printf("%2d %s \n", i, env_list[i]);
     // printf("%d \n", num_env);
 }
 
