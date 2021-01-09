@@ -132,7 +132,10 @@ void extract_file_path(char file_path[], char http_request[], int len_file_path)
     char *path = strtok(NULL, " ");  // パス（例：/img/logo.gif）
     strncpy(file_path, path, len_file_path);
 
-    // TODO: ファイルパスの最後の文字が"/"であれば削除
+    // ファイルパスの最後の文字が"/"であれば削除
+    if (file_path[strlen(file_path) - 1] == '/') {
+        file_path[strlen(file_path) - 1] = '\0';
+    }
 
     printf("file_path: %s\n", file_path);
 }
@@ -149,13 +152,13 @@ void create_full_path(char full_path[], char path[], int len_path) {
     stat(full_path, &file_status);
 
     // ファイルパスがファイルのとき
-    if (S_ISREG(file_status.st_mode)) puts("this is file");
+    if (S_ISREG(file_status.st_mode)) {
+    }
 
     // ファイルパスがディレクトリなら，htmlファイルを付加してフルパスに
     if (S_ISDIR(file_status.st_mode)) {
-        char html_path[] = "index.html";
+        char html_path[] = "/index.html";
         strncat(full_path, html_path, sizeof(html_path));
-        puts("this is directory");
     }
 
     printf("full_path(2): %s \n", full_path);
