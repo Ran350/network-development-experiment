@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     }
 
     // TCPクライアントからの接続要求を待てる状態にする
-    if (listen(srcSocket, 1) < 0) {
+    if (listen(srcSocket, 5) < 0) {
         perror("listen");
         printf("%d\n", errno);
         exit(EXIT_FAILURE);
@@ -76,7 +76,6 @@ int main(int argc, char *argv[]) {
             printf("%d\n", errno);
             exit(EXIT_FAILURE);
         }
-        // close(srcSocket);
 
         puts("---------------------------------------------");
         printf("接続を待っています。\n\n");
@@ -165,9 +164,10 @@ void create_full_path(char full_path[], char path[], int len_path) {
 }
 
 bool check_file_exist(char file_path[]) {
-    if (open(file_path, O_RDONLY) > 0) {
-        return true;
-    }
+    int fd = open(file_path, O_RDONLY);
+    close(fd);
+    if (fd > 0) return true;
+
     return false;
 }
 
@@ -209,4 +209,5 @@ void send_file(int socket, char file_path[]) {
             exit(EXIT_FAILURE);
         }
     }
+    close(file_descriptor);
 }
