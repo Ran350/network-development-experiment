@@ -41,8 +41,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    //シグナルハンドラの設定
-    // //子プロセスの実行終了用シグナル
+    // 子プロセスの実行終了用シグナルハンドラの設定
     signal(SIGCHLD, handler_child_exited);
 
     // ソケットの生成
@@ -74,7 +73,7 @@ int main(int argc, char *argv[]) {
     }
 
     // TCPクライアントからの接続要求を待てる状態にする
-    if (listen(srcSocket, 1) < 0) {
+    if (listen(srcSocket, 5) < 0) {
         perror("listen");
         printf("%d\n", errno);
         exit(EXIT_FAILURE);
@@ -201,9 +200,10 @@ void create_full_path(char full_path[], char path[], int len_path) {
 }
 
 bool check_file_exist(char file_path[]) {
-    if (open(file_path, O_RDONLY) > 0) {
-        return true;
-    }
+    int fd = open(file_path, O_RDONLY);
+    close(fd);
+
+    if (fd > 0) return true;
     return false;
 }
 
@@ -228,14 +228,14 @@ void send_response_status(int socket, bool file_exist, char file_path[]) {
 }
 
 void send_file(int socket, char file_path[]) {
-    int file_descriptor = open(file_path, O_RDONLY);
+    int fd = open(file_path, O_RDONLY);
 
     /* ソケットへ書き込む */
     while (1) {
         char buf[4048];
 
         /* ファイルを読み込む */
-        int bytes_read = read(file_descriptor, buf, sizeof(buf));
+        int bytes_read = read(fd, buf, sizeof(buf));
         if (bytes_read <= 0) break;
 
         /* ソケットへ書き込む */
@@ -245,4 +245,6 @@ void send_file(int socket, char file_path[]) {
             exit(EXIT_FAILURE);
         }
     }
+
+    close(fd);
 }
